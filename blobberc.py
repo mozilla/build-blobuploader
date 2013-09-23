@@ -55,7 +55,8 @@ def upload_file(hosts, filename, branch, hashalgo='sha512',
             'blobhash': blobhash,
         }
         log.info("POST call the file - attempt #%d." % (n))
-        if _post_file(**post_params):
+        ret_code = _post_file(**post_params)
+        if ret_code == 200:
             # File posted successfully via blob server.
             # Make sure the resource is available on amazon S3 bucket.
             resource_url = '%s/%s/%s/%s' % (s3_bucket_base_url, branch,
@@ -65,6 +66,9 @@ def upload_file(hosts, filename, branch, hashalgo='sha512',
                 log.info("Uploaded %s to %s" % (filename, resource_url))
             else:
                 log.warning("Uploading to Amazon S3 failed.")
+            break
+        elif ret_code == 400:
+            log.warning("Something wrong with the file on blobserver.")
             break
         else:
             log.warning("POST call failed. Trying again ...")
@@ -90,12 +94,11 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
     log.debug("Posting file to %s ...", url)
     try:
         urllib2.urlopen(req)
-    except urllib2.URLError:
-        log.debug("Posting file %s failed." % filename)
-        return False
-
-    log.debug("Posting file %s sucessfully." % filename)
-    return True
+    except urllib2.HTTPError, err:
+        log.debug("Posting file %s failed with %s code." % (filename, err.code))
+        return err.getcode()
+    log.debug("Posting file %s to blobber successfully." % filename)
+    return 200
 
 
 def upload_dir(hosts, dirname, branch, hashalgo='sha512'):
