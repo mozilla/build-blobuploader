@@ -35,7 +35,7 @@ s3_bucket_base_url = 'http://mozilla-releng-blobs.s3.amazonaws.com/blobs'
 
 
 def upload_file(hosts, filename, branch, hashalgo='sha512',
-                blobhash=None, attempts=2):
+                blobhash=None, attempts=10):
 
     if blobhash is None:
         blobhash = filehash(filename, hashalgo)
