@@ -86,7 +86,6 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
     datagen, headers = poster.encode.multipart_encode({
         'data': open(filename, 'rb'),
         'filename': filename,
-        'filesize': os.path.getsize(filename),
         'branch': branch,
         'mimetype': 'application/octet-stream',
     })
