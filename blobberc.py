@@ -67,8 +67,7 @@ def upload_file(hosts, filename, branch, hashalgo='sha512',
             else:
                 log.warning("Uploading to Amazon S3 failed.")
             break
-        elif ret_code == 400:
-            log.warning("Something wrong with the file on blobserver.")
+        elif ret_code == 403:
             break
         else:
             log.warning("POST call failed. Trying again ...")
@@ -95,6 +94,10 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
         urllib2.urlopen(req)
     except urllib2.HTTPError, err:
         log.debug("Posting file %s failed with %s code." % (filename, err.code))
+        if err.getcode() == 403:
+            err_msg = err.headers.dict.get('x-blobber-msg',
+                                           'Something went wrong on blobber!')
+            log.warning(err_msg)
         return err.getcode()
     log.debug("Posting file %s to blobber successfully." % filename)
     return 200
