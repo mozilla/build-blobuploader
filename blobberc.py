@@ -9,6 +9,7 @@
 FILE                   Local file(s) to upload
 """
 import urlparse
+import base64
 import os
 import urllib2
 import hashlib
@@ -89,6 +90,12 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
         'mimetype': 'application/octet-stream',
     })
     req = urllib2.Request(url, datagen, headers)
+    # TODO: replace user/passwd harcodings with proper config
+    u = 'SMPATQNPP71YBNPATAER'
+    p = 'CB52CAT6PQ1GBFDNPK9A'
+    auth = base64.encodestring('%s:%s' % (u,p)).replace('\n', '')
+    req.add_header("Authorization", "Basic %s" % auth)
+
     log.debug("Posting file to %s ...", url)
     try:
         urllib2.urlopen(req)
