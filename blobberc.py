@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-"""Usage: blobberc.py -u URL... -b BRANCH [-v] [-d] FILE
+"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-v] [-d] FILE
 
 -u, --url URL          URL to blobber server to upload to.
+-a, --auth AUTH_FILE   user/pass AUTH_FILE for signing the calls
 -b, --branch BRANCH    Specify branch for the file (e.g. try, mozilla-central)
 -v, --verbose          Increase verbosity
 -d, --dir              Instead of a file, upload multiple files from a dir name
@@ -35,7 +36,7 @@ sha512sum = partial(filehash, hashalgo='sha512')
 s3_bucket_base_url = 'http://mozilla-releng-blobs.s3.amazonaws.com/blobs'
 
 
-def upload_file(hosts, filename, branch, hashalgo='sha512',
+def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
                 blobhash=None, attempts=10):
 
     if blobhash is None:
@@ -50,6 +51,7 @@ def upload_file(hosts, filename, branch, hashalgo='sha512',
         log.info("Picked up %s host after shuffling." % host)
         post_params = {
             'host': host,
+            'auth': auth,
             'filename': filename,
             'branch': branch,
             'hashalgo': hashalgo,
@@ -68,7 +70,7 @@ def upload_file(hosts, filename, branch, hashalgo='sha512',
             else:
                 log.warning("Uploading to Amazon S3 failed.")
             break
-        elif ret_code == 403:
+        elif ret_code == 403 or ret_code == 401:
             break
         else:
             log.warning("POST call failed. Trying again ...")
@@ -80,7 +82,7 @@ def upload_file(hosts, filename, branch, hashalgo='sha512',
                  (filename))
 
 
-def _post_file(host, filename, branch, hashalgo, blobhash):
+def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     url = urlparse.urljoin(host, '/blobs/{}/{}'.format(hashalgo, blobhash))
 
     datagen, headers = poster.encode.multipart_encode({
@@ -90,10 +92,7 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
         'mimetype': 'application/octet-stream',
     })
     req = urllib2.Request(url, datagen, headers)
-    # TODO: replace user/passwd harcodings with proper config
-    u = 'SMPATQNPP71YBNPATAER'
-    p = 'CB52CAT6PQ1GBFDNPK9A'
-    auth = base64.encodestring('%s:%s' % (u,p)).replace('\n', '')
+    auth = base64.encodestring('%s:%s' % (auth[0], auth[1])).replace('\n', '')
     req.add_header("Authorization", "Basic %s" % auth)
 
     log.debug("Posting file to %s ...", url)
@@ -101,7 +100,8 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
         urllib2.urlopen(req)
     except urllib2.HTTPError, err:
         log.debug("Posting file %s failed with %s code." % (filename, err.code))
-        if err.getcode() == 403:
+        err_code = err.getcode()
+        if err_code == 403 or err_code == 401:
             err_msg = err.headers.dict.get('x-blobber-msg',
                                            'Something went wrong on blobber!')
             log.warning(err_msg)
@@ -110,7 +110,7 @@ def _post_file(host, filename, branch, hashalgo, blobhash):
     return 200
 
 
-def upload_dir(hosts, dirname, branch, hashalgo='sha512'):
+def upload_dir(hosts, dirname, branch, auth, hashalgo='sha512'):
     log.info("Open directory for files ...")
     dir_files = [f for f in os.listdir(dirname)
                  if os.path.isfile(os.path.join(dirname, f))]
@@ -118,7 +118,7 @@ def upload_dir(hosts, dirname, branch, hashalgo='sha512'):
     log.debug("Go through all files in directory")
     for f in dir_files:
         filename = os.path.join(dirname, f)
-        upload_file(hosts, filename, branch)
+        upload_file(hosts, filename, branch, auth)
 
     log.info("Iteration through files over.")
 
@@ -139,12 +139,22 @@ def main():
     logging.basicConfig(format=FORMAT, level=loglevel)
     logging.getLogger('requests').setLevel(logging.WARN)
 
+    credentials = {}
+    execfile(args['--auth'], credentials)
+    auth = (credentials['blobber_username'], credentials['blobber_password'])
+
     if args['--dir']:
         if os.path.isdir(args['FILE']):
-            upload_dir(args['--url'], args['FILE'], branch=args['--branch'])
+            upload_dir(args['--url'],
+                       args['FILE'],
+                       args['--branch'],
+                       auth)
     else:
         if os.path.isfile(args['FILE']):
-            upload_file(args['--url'], args['FILE'], branch=args['--branch'])
+            upload_file(args['--url'],
+                        args['FILE'],
+                        args['--branch'],
+                        auth)
 
 if __name__ == '__main__':
     main()
