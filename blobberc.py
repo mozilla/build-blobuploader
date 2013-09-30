@@ -87,7 +87,6 @@ def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     }
 
     meta_dict = {
-        'filename': filename,
         'branch': branch,
         'mimetype': 'application/octet-stream',
     }
