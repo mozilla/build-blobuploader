@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#/opt/python/ondeck/wsgi.conf!/usr/bin/env python
 """Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-v] [-d] FILE
 
 -u, --url URL          URL to blobber server to upload to.
@@ -10,12 +10,9 @@
 FILE                   Local file(s) to upload
 """
 import urlparse
-import base64
 import os
-import urllib2
 import hashlib
 import requests
-import poster.encode
 import logging
 import random
 from functools import partial
@@ -59,7 +56,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         }
         log.info("POST call the file - attempt #%d." % (n))
         ret_code = _post_file(**post_params)
-        if ret_code == 200:
+        if ret_code == 202:
             # File posted successfully via blob server.
             # Make sure the resource is available on amazon S3 bucket.
             resource_url = '%s/%s/%s/%s' % (s3_bucket_base_url, branch,
@@ -85,29 +82,25 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
 def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     url = urlparse.urljoin(host, '/blobs/{}/{}'.format(hashalgo, blobhash))
 
-    datagen, headers = poster.encode.multipart_encode({
-        'data': open(filename, 'rb'),
+    data_dict = {
+        'blob': open(filename, "rb"),
+    }
+
+    meta_dict = {
         'filename': filename,
         'branch': branch,
         'mimetype': 'application/octet-stream',
-    })
-    req = urllib2.Request(url, datagen, headers)
-    auth = base64.encodestring('%s:%s' % (auth[0], auth[1])).replace('\n', '')
-    req.add_header("Authorization", "Basic %s" % auth)
+    }
 
     log.debug("Posting file to %s ...", url)
-    try:
-        urllib2.urlopen(req)
-    except urllib2.HTTPError, err:
-        log.debug("Posting file %s failed with %s code." % (filename, err.code))
-        err_code = err.getcode()
-        if err_code == 403 or err_code == 401:
-            err_msg = err.headers.dict.get('x-blobber-msg',
-                                           'Something went wrong on blobber!')
-            log.warning(err_msg)
-        return err.getcode()
-    log.debug("Posting file %s to blobber successfully." % filename)
-    return 200
+    req = requests.post(url, auth=auth, files=data_dict, data=meta_dict)
+
+    if req.status_code != 202:
+        err_msg = req.headers.get('x-blobber-msg',
+                                  'Something went wrong on blobber!')
+        log.warning(err_msg)
+
+    return req.status_code
 
 
 def upload_dir(hosts, dirname, branch, auth, hashalgo='sha512'):
@@ -125,8 +118,6 @@ def upload_dir(hosts, dirname, branch, auth, hashalgo='sha512'):
 
 def main():
     from docopt import docopt
-    import poster.streaminghttp
-    poster.streaminghttp.register_openers()
 
     args = docopt(__doc__)
 
