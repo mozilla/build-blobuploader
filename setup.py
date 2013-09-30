@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name="blobuploader",
-      version="0.9",
+      version="0.991",
       author="Mihai Tabara",
       author_email="mtabara@mozilla.com",
       url="https://github.com/catlee/blobber",

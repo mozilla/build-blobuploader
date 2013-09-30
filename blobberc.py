@@ -1,4 +1,4 @@
-#/opt/python/ondeck/wsgi.conf!/usr/bin/env python
+#!/usr/bin/env python
 """Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-v] [-d] FILE
 
 -u, --url URL          URL to blobber server to upload to.
