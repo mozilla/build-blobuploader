@@ -1,3 +1,4 @@
+*.pyc
 sandbox/*
 blobuploader.egg-info/*
 dist/*

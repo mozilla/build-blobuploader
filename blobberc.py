@@ -17,6 +17,7 @@ import logging
 import random
 from functools import partial
 
+from blobuploader import cert
 
 log = logging.getLogger(__name__)
 
@@ -88,11 +89,14 @@ def _post_file(host, auth, filename, branch, hashalgo, blobhash):
 
     meta_dict = {
         'branch': branch,
-        'mimetype': 'application/octet-stream',
     }
 
     log.debug("Posting file to %s ...", url)
-    req = requests.post(url, auth=auth, files=data_dict, data=meta_dict)
+    req = requests.post(url,
+                        auth=auth,
+                        files=data_dict,
+                        data=meta_dict,
+                        verify=cert.where())
 
     if req.status_code != 202:
         err_msg = req.headers.get('x-blobber-msg',

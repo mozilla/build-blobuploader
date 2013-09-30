@@ -10,4 +10,8 @@ setup(name="blobuploader",
       install_requires=["requests==1.2.3.",
                         "docopt==0.6.1"],
       description="Specific client for uploading blob files on Mozilla server",
+      packages=['blobuploader'],
+      package_dir={'blobuploader': 'blobuploader'},
+      package_data={'blobuploader': ['*.pem']},
+      include_package_data=True,
       )
