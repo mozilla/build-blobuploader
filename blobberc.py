@@ -63,8 +63,8 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
                 log.info("Uploaded %s to %s" % (filename, resource_url))
                 file_uploaded = True
             else:
-                log.warning("Uploaded file on blobserver but failed to find it
-                             to Amazon S3.")
+                log.warning("Uploaded file on blobserver but failed to find it "
+                            "to Amazon S3.")
             break
         elif ret_code == 403 or ret_code == 401:
             # avoid attempting to make same wrong call to other servers
