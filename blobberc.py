@@ -30,7 +30,6 @@ def filehash(filename, hashalgo):
     return h.hexdigest()
 
 
-sha512sum = partial(filehash, hashalgo='sha512')
 s3_bucket_base_url = 'http://mozilla-releng-blobs.s3.amazonaws.com/blobs'
 
 
@@ -40,23 +39,20 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
     if blobhash is None:
         blobhash = filehash(filename, hashalgo)
 
-    log.info("Try to upload %s" % filename)
+    log.info("Try to upload %s ..." % filename)
     host_pool = hosts[:]
+    random.shuffle(host_pool)
     n = 1
-    while n <= attempts:
-        random.shuffle(host_pool)
-        host = host_pool[0]
+
+    file_uploaded = False
+    while n <= attempts and host_pool:
+        host = host_pool.pop()
         log.info("Picked up %s host after shuffling." % host)
-        post_params = {
-            'host': host,
-            'auth': auth,
-            'filename': filename,
-            'branch': branch,
-            'hashalgo': hashalgo,
-            'blobhash': blobhash,
-        }
+
         log.info("POST call the file - attempt #%d." % (n))
-        ret_code = _post_file(**post_params)
+        ret_code = _post_file(host, auth, filename, branch,
+                                hashalgo, blobhash)
+
         if ret_code == 202:
             # File posted successfully via blob server.
             # Make sure the resource is available on amazon S3 bucket.
@@ -65,19 +61,21 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
             ret = requests.head(resource_url)
             if ret.ok:
                 log.info("Uploaded %s to %s" % (filename, resource_url))
+                file_uploaded = True
             else:
-                log.warning("Uploading to Amazon S3 failed.")
+                log.warning("Uploaded file on blobserver but failed to find it
+                             to Amazon S3.")
             break
         elif ret_code == 403 or ret_code == 401:
+            # avoid attempting to make same wrong call to other servers
             break
         else:
             log.warning("POST call failed. Trying again ...")
 
         n += 1
 
-    if n == attempts+1:
-        log.warning("Nr. of attempts exceeded. Uploading %s file failed!" %
-                 (filename))
+    if not file_uploaded:
+        log.warning("Uploading %s file failed!" % (filename))
 
 
 def _post_file(host, auth, filename, branch, hashalgo, blobhash):
@@ -86,7 +84,6 @@ def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     data_dict = {
         'blob': open(filename, "rb"),
     }
-
     meta_dict = {
         'branch': branch,
     }
@@ -96,7 +93,8 @@ def _post_file(host, auth, filename, branch, hashalgo, blobhash):
                         auth=auth,
                         files=data_dict,
                         data=meta_dict,
-                        verify=cert.where())
+                        verify=cert.where()
+    )
 
     if req.status_code != 202:
         err_msg = req.headers.get('x-blobber-msg',
@@ -149,6 +147,7 @@ def main():
                         args['FILE'],
                         args['--branch'],
                         auth)
+
 
 if __name__ == '__main__':
     main()
