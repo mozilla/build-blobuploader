@@ -30,9 +30,6 @@ def filehash(filename, hashalgo):
     return h.hexdigest()
 
 
-s3_bucket_base_url = 'http://mozilla-releng-blobs.s3.amazonaws.com/blobs'
-
-
 def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
                 blobhash=None, attempts=10):
 
@@ -50,17 +47,21 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         log.info("Picked up %s host after shuffling." % host)
 
         log.info("POST call the file - attempt #%d." % (n))
-        ret_code = _post_file(host, auth, filename, branch,
-                                hashalgo, blobhash)
+        resp = _post_file(host, auth, filename, branch,
+                          hashalgo, blobhash)
 
+        ret_code = resp.status_code
         if ret_code == 202:
             # File posted successfully via blob server.
             # Make sure the resource is available on amazon S3 bucket.
-            resource_url = '%s/%s/%s/%s' % (s3_bucket_base_url, branch,
-                                            hashalgo, blobhash)
-            ret = requests.head(resource_url)
+            blob_url = resp.headers.get('x-blob-url')
+            if not blob_url:
+                log.warning("Blob resource URL not found in response.")
+                break
+
+            ret = requests.head(blob_url)
             if ret.ok:
-                log.info("Uploaded %s to %s" % (filename, resource_url))
+                log.info("Uploaded %s to %s" % (filename, blob_url))
                 file_uploaded = True
             else:
                 log.warning("Uploaded file on blobserver but failed to find it "
@@ -89,19 +90,18 @@ def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     }
 
     log.debug("Posting file to %s ...", url)
-    req = requests.post(url,
-                        auth=auth,
-                        files=data_dict,
-                        data=meta_dict,
-                        verify=cert.where()
+    response = requests.post(url,
+                             auth=auth,
+                             files=data_dict,
+                             data=meta_dict,
+                             verify=cert.where(),
     )
-
-    if req.status_code != 202:
-        err_msg = req.headers.get('x-blobber-msg',
-                                  'Something went wrong on blobber!')
+    if response.status_code != 202:
+        err_msg = response.headers.get('x-blobber-msg',
+                                       'Something went wrong on blobber!')
         log.warning(err_msg)
 
-    return req.status_code
+    return response
 
 
 def upload_dir(hosts, dirname, branch, auth, hashalgo='sha512'):
