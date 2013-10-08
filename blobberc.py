@@ -61,7 +61,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
 
             ret = requests.head(blob_url)
             if ret.ok:
-                log.info("Uploaded %s to %s" % (filename, blob_url))
+                log.info("TinderboxPrint: Uploaded %s to %s" % (filename, blob_url))
                 file_uploaded = True
             else:
                 log.warning("Uploaded file on blobserver but failed to find it "
