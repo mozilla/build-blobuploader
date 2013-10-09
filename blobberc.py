@@ -36,7 +36,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
     if blobhash is None:
         blobhash = filehash(filename, hashalgo)
 
-    log.info("Try to upload %s ..." % filename)
+    log.info("Uploading %s ...", filename)
     host_pool = hosts[:]
     random.shuffle(host_pool)
     n = 1
@@ -44,73 +44,68 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
     file_uploaded = False
     while n <= attempts and host_pool:
         host = host_pool.pop()
-        log.info("Picked up %s host after shuffling." % host)
-
-        log.info("POST call the file - attempt #%d." % (n))
-        resp = _post_file(host, auth, filename, branch,
-                          hashalgo, blobhash)
-
+        log.info("Using %s", host)
+        log.info("Uploading, attempt #%d.", n)
+        # TODO: _post_file() may barf in open() and exit, add a work around
+        # TODO: move error checking logic to _post_file() to simplify retry
+        # logic
+        resp = _post_file(host, auth, filename, branch, hashalgo, blobhash)
         ret_code = resp.status_code
         if ret_code == 202:
             # File posted successfully via blob server.
             # Make sure the resource is available on amazon S3 bucket.
             blob_url = resp.headers.get('x-blob-url')
             if not blob_url:
-                log.warning("Blob resource URL not found in response.")
+                log.critical("Blob resource URL not found in response.")
                 break
 
             ret = requests.head(blob_url)
             if ret.ok:
-                log.info("TinderboxPrint: Uploaded %s to %s" % (filename, blob_url))
+                log.info("TinderboxPrint: Uploaded %s to %s", filename,
+                         blob_url)
                 file_uploaded = True
             else:
-                log.warning("Uploaded file on blobserver but failed to find it "
+                log.warning("File uploaded to blobserver but failed uploading "
                             "to Amazon S3.")
             break
         elif ret_code == 403 or ret_code == 401:
             # avoid attempting to make same wrong call to other servers
+            log.critical("Blobserver returned %s, bailing...", ret_code)
             break
         else:
-            log.warning("POST call failed. Trying again ...")
+            log.critical("Upload failed. Trying again ...")
 
         n += 1
 
     if not file_uploaded:
-        log.warning("Uploading %s file failed!" % (filename))
+        log.critical("Failed uploading %s!", filename)
 
 
 def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     url = urlparse.urljoin(host, '/blobs/{}/{}'.format(hashalgo, blobhash))
 
-    data_dict = {
-        'blob': open(filename, "rb"),
-    }
-    meta_dict = {
-        'branch': branch,
-    }
-
-    log.debug("Posting file to %s ...", url)
-    response = requests.post(url,
-                             auth=auth,
-                             files=data_dict,
-                             data=meta_dict,
-                             verify=cert.where(),
-    )
+    data_dict = dict(blob=open(filename, "rb"))
+    meta_dict = dict(branch=branch)
+    log.debug("Uploading file to %s ...", url)
+    response = requests.post(url, auth=auth, files=data_dict, data=meta_dict,
+                             verify=cert.where())
     if response.status_code != 202:
         err_msg = response.headers.get('x-blobber-msg',
                                        'Something went wrong on blobber!')
-        log.warning(err_msg)
+        log.critical(err_msg)
 
     return response
 
 
-def upload_dir(hosts, dirname, branch, auth, hashalgo='sha512'):
+def upload_dir(hosts, dirname, branch, auth):
     log.info("Open directory for files ...")
-    dir_files = [f for f in os.listdir(dirname)
-                 if os.path.isfile(os.path.join(dirname, f))]
+    # Ignore directories and symlinks
+    files = [f for f in os.listdir(dirname) if
+             os.path.isfile(os.path.join(dirname, f)) and
+             not os.path.islink(os.path.join(dirname, f))]
 
     log.debug("Go through all files in directory")
-    for f in dir_files:
+    for f in files:
         filename = os.path.join(dirname, f)
         upload_file(hosts, filename, branch, auth)
 
@@ -136,17 +131,9 @@ def main():
     auth = (credentials['blobber_username'], credentials['blobber_password'])
 
     if args['--dir']:
-        if os.path.isdir(args['FILE']):
-            upload_dir(args['--url'],
-                       args['FILE'],
-                       args['--branch'],
-                       auth)
+        upload_dir(args['--url'], args['FILE'], args['--branch'], auth)
     else:
-        if os.path.isfile(args['FILE']):
-            upload_file(args['--url'],
-                        args['FILE'],
-                        args['--branch'],
-                        auth)
+        upload_file(args['--url'], args['FILE'], args['--branch'], auth)
 
 
 if __name__ == '__main__':
