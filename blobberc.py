@@ -12,6 +12,7 @@ FILE                   Local file(s) to upload
 
 import urlparse
 import os
+import sys
 import hashlib
 import requests
 import logging
