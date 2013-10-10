@@ -105,11 +105,6 @@ def check_status(response):
     to double check file availability on Amazon S3 storage
 
     """
-    filename = response.headers.get('x-blob-filename')
-    if not filename:
-        log.critical("Blob filename not found in response!")
-        return
-
     ret_code = response.status_code
 
     if ret_code == 202:
@@ -119,6 +114,10 @@ def check_status(response):
             return
         ret = requests.head(blob_url)
         if ret.ok:
+            filename = response.headers.get('x-blob-filename')
+            if not filename:
+                log.critical("Blob filename not found in response!")
+                return
             log.info("TinderboxPrint: Uploaded %s to %s", filename,
                      blob_url)
         else:
