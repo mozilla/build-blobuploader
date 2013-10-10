@@ -39,46 +39,47 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
     log.info("Uploading %s ...", filename)
     host_pool = hosts[:]
     random.shuffle(host_pool)
+    non_retryable_codes = (202, 401, 403)
     n = 1
 
-    file_uploaded = False
     while n <= attempts and host_pool:
         host = host_pool.pop()
         log.info("Using %s", host)
         log.info("Uploading, attempt #%d.", n)
         # TODO: _post_file() may barf in open() and exit, add a work around
-        # TODO: move error checking logic to _post_file() to simplify retry
-        # logic
-        resp = _post_file(host, auth, filename, branch, hashalgo, blobhash)
-        ret_code = resp.status_code
-        if ret_code == 202:
-            # File posted successfully via blob server.
-            # Make sure the resource is available on amazon S3 bucket.
-            blob_url = resp.headers.get('x-blob-url')
-            if not blob_url:
-                log.critical("Blob resource URL not found in response.")
-                break
 
-            ret = requests.head(blob_url)
-            if ret.ok:
-                log.info("TinderboxPrint: Uploaded %s to %s", filename,
-                         blob_url)
-                file_uploaded = True
-            else:
-                log.warning("File uploaded to blobserver but failed uploading "
-                            "to Amazon S3.")
+        ret_code = _post_file(host, auth, filename, branch, hashalgo, blobhash)
+        if ret_code in non_retryable_codes:
+            log.info("Blobserver returned %s, bailing...", ret_code)
             break
-        elif ret_code == 403 or ret_code == 401:
-            # avoid attempting to make same wrong call to other servers
-            log.critical("Blobserver returned %s, bailing...", ret_code)
-            break
-        else:
-            log.critical("Upload failed. Trying again ...")
 
+        log.info("Upload failed. Trying again ...")
         n += 1
 
-    if not file_uploaded:
-        log.critical("Failed uploading %s!", filename)
+    log.info("Done attempting.")
+
+
+def _analyze_response(response, default_filename):
+    filename = response.headers.get('x-blob-filename',
+                                    default_filename)
+    ret_code = response.status_code
+
+    if ret_code == 202:
+        blob_url = response.headers.get('x-blob-url')
+        if not blob_url:
+            log.critical("Blob storage URL not found in response!")
+            return
+        ret = requests.head(blob_url)
+        if ret.ok:
+            log.info("TinderboxPrint: Uploaded %s to %s", filename,
+                     blob_url)
+        else:
+            log.warning("File uploaded to blobserver but failed uploading "
+                        "to Amazon S3.")
+    else:
+        err_msg = response.headers.get('x-blobber-msg',
+                                       'Something went wrong on blobber!')
+        log.critical(err_msg)
 
 
 def _post_file(host, auth, filename, branch, hashalgo, blobhash):
@@ -86,15 +87,13 @@ def _post_file(host, auth, filename, branch, hashalgo, blobhash):
 
     data_dict = dict(blob=open(filename, "rb"))
     meta_dict = dict(branch=branch)
+
     log.debug("Uploading file to %s ...", url)
     response = requests.post(url, auth=auth, files=data_dict, data=meta_dict,
                              verify=cert.where())
-    if response.status_code != 202:
-        err_msg = response.headers.get('x-blobber-msg',
-                                       'Something went wrong on blobber!')
-        log.critical(err_msg)
 
-    return response
+    _analyze_response(response, filename)
+    return response.status_code
 
 
 def upload_dir(hosts, dirname, branch, auth):
