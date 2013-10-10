@@ -46,11 +46,14 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         host = host_pool.pop()
         log.info("Using %s", host)
         log.info("Uploading, attempt #%d.", n)
-        # TODO: _post_file() may barf in open() and exit, add a work around
 
-        ret_code = _post_file(host, auth, filename, branch, hashalgo, blobhash)
-        if ret_code in non_retryable_codes:
-            log.info("Blobserver returned %s, bailing...", ret_code)
+        ret = _post_file(host, auth, filename, branch, hashalgo, blobhash)
+        if ret == -1:
+            log.critical("Error opening %s on the client side!", filename)
+            break
+
+        if ret in non_retryable_codes:
+            log.info("Blobserver returned %s, bailing...", ret)
             break
 
         log.info("Upload failed. Trying again ...")
@@ -85,7 +88,10 @@ def _analyze_response(response, default_filename):
 def _post_file(host, auth, filename, branch, hashalgo, blobhash):
     url = urlparse.urljoin(host, '/blobs/{}/{}'.format(hashalgo, blobhash))
 
-    data_dict = dict(blob=open(filename, "rb"))
+    try:
+        data_dict = dict(blob=open(filename, "rb"))
+    except IOError, err:
+        return -1
     meta_dict = dict(branch=branch)
 
     log.debug("Uploading file to %s ...", url)
