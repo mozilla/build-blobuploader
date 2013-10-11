@@ -2,7 +2,7 @@
 from distutils.core import setup
 
 setup(name="blobuploader",
-      version="0.995",
+      version="1.0b",
       author="Mihai Tabara",
       author_email="mtabara@mozilla.com",
       url="https://github.com/catlee/blobber",
