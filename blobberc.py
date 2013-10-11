@@ -75,7 +75,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
     log.info("Uploading %s ...", filename)
     host_pool = hosts[:]
     random.shuffle(host_pool)
-    non_retryable_codes = (202, 401, 403)
+    non_retryable_codes = (401, 403)
     n = 1
 
     while n <= attempts and host_pool:
@@ -87,6 +87,10 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
             ret = post_file(host, auth, filename, branch, hashalgo, blobhash)
         except:
             log.critical("Unexpected error in client: %s", sys.exc_info()[0])
+            break
+
+        if ret == 202:
+            log.info("Blobserver returned %s. File uploaded!", ret)
             break
 
         if ret in non_retryable_codes:
