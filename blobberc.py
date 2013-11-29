@@ -12,11 +12,11 @@ FILE                   Local file(s) to upload
 
 import urlparse
 import os
-import sys
 import hashlib
 import requests
 import logging
 import random
+import traceback
 from functools import partial
 
 from blobuploader import cert
@@ -86,7 +86,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         try:
             ret = post_file(host, auth, filename, branch, hashalgo, blobhash)
         except:
-            log.critical("Unexpected error in client: %s", sys.exc_info()[0])
+            log.critical("Unexpected error in client: %s", traceback.format_exc())
             break
 
         if ret == 202:
