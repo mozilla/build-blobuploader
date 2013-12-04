@@ -141,7 +141,7 @@ def post_file(host, auth, filename, branch, hashalgo, blobhash):
     accordingly log messages
 
     """
-    url = urlparse.urljoin(host, '/blobs/{}/{}'.format(hashalgo, blobhash))
+    url = urlparse.urljoin(host, '/blobs/{0}/{1}'.format(hashalgo, blobhash))
     data_dict = dict(blob=open(filename, "rb"))
     meta_dict = dict(branch=branch)
 
