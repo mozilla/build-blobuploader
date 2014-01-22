@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-v] [-d] FILE
+"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-v] [-d] [-z] FILE
 
 -u, --url URL          URL to blobber server to upload to.
 -a, --auth AUTH_FILE   user/pass AUTH_FILE for signing the calls
 -b, --branch BRANCH    Specify branch for the file (e.g. try, mozilla-central)
 -v, --verbose          Increase verbosity
 -d, --dir              Instead of a file, upload multiple files from a dir name
+-z, --gzip             gzip compress file before uploading
 
 FILE                   Local file(s) to upload
 """
@@ -16,27 +17,36 @@ import hashlib
 import requests
 import logging
 import random
+import tempfile
 import traceback
+import gzip
 from functools import partial
 
 from blobuploader import cert
 
 log = logging.getLogger(__name__)
 
+# These filetypes get gzip-compressed by default
+default_compress_filetypes = set(['.txt', '.log', '.html'])
 
-def filehash(filename, hashalgo):
+def filehash(f, hashalgo):
     """
-    Return hash for a given file and hashing algorithm
+    Return hash for a given file object and hashing algorithm
 
     """
     h = hashlib.new(hashalgo)
-    with open(filename, 'rb') as f:
-        for block in iter(partial(f.read, 1024 ** 2), ''):
-            h.update(block)
+    for block in iter(partial(f.read, 1024 ** 2), ''):
+        h.update(block)
     return h.hexdigest()
 
 
-def upload_dir(hosts, dirname, branch, auth):
+def should_compress(filename):
+    """
+    Return True if the file should be compressed before uploading.
+    """
+    return os.path.splitext(filename)[1].lower() in default_compress_filetypes
+
+def upload_dir(hosts, dirname, branch, auth, compress=False):
     """
     Sequentially call uploading subroutine for each file in the dir
 
@@ -50,13 +60,14 @@ def upload_dir(hosts, dirname, branch, auth):
     log.debug("Go through all files in directory")
     for f in files:
         filename = os.path.join(dirname, f)
-        upload_file(hosts, filename, branch, auth)
+        compress_file = compress or should_compress(filename)
+        upload_file(hosts, filename, branch, auth, compress=compress_file)
 
     log.info("Iteration through files over.")
 
 
 def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
-                blobhash=None, attempts=10):
+                blobhash=None, attempts=10, compress=False):
     """
     Uploading subroutine is used to upload a single file to the first available
     host out of those specified. The hosts are randomly shuffled before
@@ -69,8 +80,18 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
                missing metadata/file type forbidden/metadata limit exceeded
 
     """
+    if compress:
+        tf = tempfile.NamedTemporaryFile("wb")
+        with gzip.GzipFile(filename, "wb", fileobj=tf) as gz:
+            with open(filename, "rb") as f:
+                gz.writelines(f)
+        tf.flush()
+        file = open(tf.name, "rb")
+    else:
+        file = open(filename, "rb")
     if blobhash is None:
-        blobhash = filehash(filename, hashalgo)
+        blobhash = filehash(file, hashalgo)
+        file.seek(0)
 
     log.info("Uploading %s ...", filename)
     host_pool = hosts[:]
@@ -84,7 +105,8 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         log.info("Uploading, attempt #%d.", n)
 
         try:
-            ret = post_file(host, auth, filename, branch, hashalgo, blobhash)
+            ret = post_file(host, auth, file, filename, branch, hashalgo,
+                            blobhash, compress)
         except:
             log.critical("Unexpected error in client: %s", traceback.format_exc())
             break
@@ -134,7 +156,8 @@ def check_status(response):
         log.critical(err_msg)
 
 
-def post_file(host, auth, filename, branch, hashalgo, blobhash):
+def post_file(host, auth, file, filename, branch, hashalgo, blobhash,
+              compressed):
     """
     Pack the request with all required information and make the call to host.
     Before returning response status code, it calls check_status to print
@@ -142,8 +165,8 @@ def post_file(host, auth, filename, branch, hashalgo, blobhash):
 
     """
     url = urlparse.urljoin(host, '/blobs/{0}/{1}'.format(hashalgo, blobhash))
-    data_dict = dict(blob=open(filename, "rb"))
-    meta_dict = dict(branch=branch)
+    data_dict = dict(blob=(os.path.basename(filename), file))
+    meta_dict = dict(branch=branch, compressed=compressed)
 
     log.debug("Uploading file to %s ...", url)
     # make the request call to blob server
@@ -175,7 +198,8 @@ def main():
     if args['--dir']:
         upload_dir(args['--url'], args['FILE'], args['--branch'], auth)
     else:
-        upload_file(args['--url'], args['FILE'], args['--branch'], auth)
+        upload_file(args['--url'], args['FILE'], args['--branch'], auth,
+                    compress=args['--gzip'] or should_compress(args['FILE']))
 
 
 if __name__ == '__main__':
