@@ -1,16 +1,21 @@
 #!/usr/bin/env python
 from distutils.core import setup
 
+with open('requirements.txt') as f:
+    with open('README.md') as freadme:
+        required = f.read().splitlines()
+        readme = f.read()
+
 setup(name="blobuploader",
-      version="1.0.2b",
+      description="Command-line client for uploading blobs to the Mozilla [blobber] server.",
+      long_description=readme,
+      version="1.0.3b",
       author="Mihai Tabara",
       author_email="mtabara@mozilla.com",
       url="https://github.com/catlee/blobber",
       scripts = ["blobberc.py"],
       license="MPL",
-      install_requires=["requests==1.2.3.",
-                        "docopt==0.6.1"],
-      description="Specific client for uploading blob files on Mozilla server",
+      install_requires=required,
       packages=['blobuploader'],
       package_dir={'blobuploader': 'blobuploader'},
       package_data={'blobuploader': ['*.pem']},
