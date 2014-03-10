@@ -166,7 +166,9 @@ def post_file(host, auth, file, filename, branch, hashalgo, blobhash,
     """
     url = urlparse.urljoin(host, '/blobs/{0}/{1}'.format(hashalgo, blobhash))
     data_dict = dict(blob=(os.path.basename(filename), file))
-    meta_dict = dict(branch=branch, compressed=compressed)
+    meta_dict = dict(branch=branch)
+    if compressed:
+        meta_dict[compressed] = compressed
 
     log.debug("Uploading file to %s ...", url)
     # make the request call to blob server
