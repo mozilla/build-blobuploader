@@ -9,7 +9,7 @@ with open('README.md') as f:
 setup(name="blobuploader",
       description="Command-line client for uploading blobs to the Mozilla [blobber] server.",
       long_description=readme,
-      version="1.0.3b",
+      version="1.1.1",
       author="Mihai Tabara",
       author_email="mtabara@mozilla.com",
       url="https://github.com/catlee/blobber",
