@@ -2,9 +2,9 @@
 from distutils.core import setup
 
 with open('requirements.txt') as f:
-    with open('README.md') as freadme:
-        required = f.read().splitlines()
-        readme = f.read()
+    required = f.read().splitlines()
+with open('README.md') as f:
+    readme = f.read()
 
 setup(name="blobuploader",
       description="Command-line client for uploading blobs to the Mozilla [blobber] server.",
@@ -13,7 +13,7 @@ setup(name="blobuploader",
       author="Mihai Tabara",
       author_email="mtabara@mozilla.com",
       url="https://github.com/catlee/blobber",
-      scripts = ["blobberc.py"],
+      scripts=["blobberc.py"],
       license="MPL",
       install_requires=required,
       packages=['blobuploader'],
