@@ -145,7 +145,7 @@ def check_status(response):
             if not filename:
                 log.critical("Blob filename not found in response!")
                 return
-            log.info("TinderboxPrint: <a href='%s'>%s</a> uploaded", blob_url,
+            log.info("TinderboxPrint: <a href='%s'>%s</a>: uploaded", blob_url,
                      filename)
         else:
             log.warning("File uploaded to blobserver but failed uploading "
