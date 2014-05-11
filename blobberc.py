@@ -225,6 +225,8 @@ def main():
     auth = (credentials['blobber_username'], credentials['blobber_password'])
 
     filetype_whitelist = get_server_whitelist(args['--url'])
+    if not filetype_whitelist:
+        filetype_whitelist = default_allowed_types
 
     if args['--dir']:
         upload_dir(args['--url'], args['FILE'], args['--branch'], auth,
