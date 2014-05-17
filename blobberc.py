@@ -81,12 +81,12 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
 
     """
     if compress:
-        tf = tempfile.NamedTemporaryFile("wb")
-        with gzip.GzipFile(filename, "wb", fileobj=tf) as gz:
+        file = tempfile.NamedTemporaryFile("w+b")
+        with gzip.GzipFile(filename, "wb", fileobj=file) as gz:
             with open(filename, "rb") as f:
                 gz.writelines(f)
-        tf.flush()
-        file = open(tf.name, "rb")
+        file.flush()
+        file.seek(0)
     else:
         file = open(filename, "rb")
     if blobhash is None:
