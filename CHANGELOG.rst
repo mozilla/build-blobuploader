@@ -1,3 +1,11 @@
+1.1.6 (unreleased)
+-------------------
+*
+
+1.1.5 (2014-18-05)
+-------------------
+* Bug 998796 - sync filetypes whitelist with server [mtabara]
+
 1.1.4 (2014-17-05)
 -------------------
 * Bug 1011518 - Don't try to open an already opened tempfile when compressing uploads. [jgraham]
