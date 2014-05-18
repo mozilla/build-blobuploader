@@ -63,7 +63,7 @@ def get_server_whitelist(hosts):
     hostname = hosts[0]
     url = urlparse.urljoin(hostname, '/blobs/whitelist')
     response = requests.get(url)
-    return response.json().get('whitelist')
+    return set(response.json().get('whitelist', []))
 
 
 def upload_dir(hosts, dirname, branch, auth, compress=False,
