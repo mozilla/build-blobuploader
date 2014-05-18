@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 
 # These filetypes get gzip-compressed by default
 default_compress_filetypes = set(['.txt', '.log', '.html'])
+default_allowed_types = set(['zip', 'dmp', 'txt', 'log', 'jpg', 'png'])
 
 def filehash(f, hashalgo):
     """
@@ -46,7 +47,27 @@ def should_compress(filename):
     """
     return os.path.splitext(filename)[1].lower() in default_compress_filetypes
 
-def upload_dir(hosts, dirname, branch, auth, compress=False):
+
+def allowed_to_send(filename, whitelist):
+    """
+    Return True if the file can be send to the server, by checking its filetype
+    in the server whitelist
+    """
+    return os.path.splitext(filename)[1].lower()[1:] in whitelist
+
+
+def get_server_whitelist(hosts):
+    """
+    Return the extension whitelist from server within an API call.
+    """
+    hostname = hosts[0]
+    url = urlparse.urljoin(hostname, '/blobs/whitelist')
+    response = requests.get(url)
+    return set(response.json().get('whitelist', []))
+
+
+def upload_dir(hosts, dirname, branch, auth, compress=False,
+               filetype_whitelist=default_allowed_types):
     """
     Sequentially call uploading subroutine for each file in the dir
 
@@ -61,13 +82,14 @@ def upload_dir(hosts, dirname, branch, auth, compress=False):
     for f in files:
         filename = os.path.join(dirname, f)
         compress_file = compress or should_compress(filename)
-        upload_file(hosts, filename, branch, auth, compress=compress_file)
+        upload_file(hosts, filename, branch, auth, compress=compress_file,
+                    allowed=allowed_to_send(filename, filetype_whitelist))
 
     log.info("Iteration through files over.")
 
 
 def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
-                blobhash=None, attempts=10, compress=False):
+                blobhash=None, attempts=10, compress=False, allowed=False):
     """
     Uploading subroutine is used to upload a single file to the first available
     host out of those specified. The hosts are randomly shuffled before
@@ -80,6 +102,12 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
                missing metadata/file type forbidden/metadata limit exceeded
 
     """
+    log.info("Uploading %s ...", filename)
+
+    if not allowed:
+        log.info("Skipped %s. File type not allowed on server.", filename)
+        return
+
     if compress:
         file = tempfile.NamedTemporaryFile("w+b")
         with gzip.GzipFile(filename, "wb", fileobj=file) as gz:
@@ -93,7 +121,6 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         blobhash = filehash(file, hashalgo)
         file.seek(0)
 
-    log.info("Uploading %s ...", filename)
     host_pool = hosts[:]
     random.shuffle(host_pool)
     non_retryable_codes = (401, 403)
@@ -197,11 +224,17 @@ def main():
     execfile(args['--auth'], credentials)
     auth = (credentials['blobber_username'], credentials['blobber_password'])
 
+    filetype_whitelist = get_server_whitelist(args['--url'])
+    if not filetype_whitelist:
+        filetype_whitelist = default_allowed_types
+
     if args['--dir']:
-        upload_dir(args['--url'], args['FILE'], args['--branch'], auth)
+        upload_dir(args['--url'], args['FILE'], args['--branch'], auth,
+                   filetype_whitelist)
     else:
         upload_file(args['--url'], args['FILE'], args['--branch'], auth,
-                    compress=args['--gzip'] or should_compress(args['FILE']))
+                    compress=args['--gzip'] or should_compress(args['FILE']),
+                    allowed=allowed_to_send(args['FILE'], filetype_whitelist))
 
 
 if __name__ == '__main__':
