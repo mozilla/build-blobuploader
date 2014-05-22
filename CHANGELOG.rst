@@ -1,6 +1,6 @@
 1.1.6 (unreleased)
 -------------------
-*
+* Bug 1013631 - add missing certificate when get server whitelist [mtabara]
 
 1.1.5 (2014-18-05)
 -------------------

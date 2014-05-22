@@ -62,7 +62,7 @@ def get_server_whitelist(hosts):
     """
     hostname = hosts[0]
     url = urlparse.urljoin(hostname, '/blobs/whitelist')
-    response = requests.get(url)
+    response = requests.get(url, verify=cert.where())
     return set(response.json().get('whitelist', []))
 
 
