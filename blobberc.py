@@ -230,7 +230,7 @@ def main():
 
     if args['--dir']:
         upload_dir(args['--url'], args['FILE'], args['--branch'], auth,
-                   filetype_whitelist)
+                   filetype_whitelist=filetype_whitelist)
     else:
         upload_file(args['--url'], args['FILE'], args['--branch'], auth,
                     compress=args['--gzip'] or should_compress(args['FILE']),
