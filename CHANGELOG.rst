@@ -1,6 +1,10 @@
-1.1.8 (unreleased)
+1.2.1 (unreleased)
 -------------------
 *
+
+1.2.0 (2014-17-06)
+-------------------
+* Bug 986112 - Add the ability to track all files uploaded into summary file [armenzg]
 
 1.1.7 (2014-24-05)
 -------------------
