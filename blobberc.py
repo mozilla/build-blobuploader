@@ -1,14 +1,16 @@
-#!/usr/bin/env python
-"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-v] [-d] [-z] FILE
+#!/home/armenzg/repos/tmp/build/venv/bin/python
+"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-o URL_FILE] [-v] [-d] [-z] FILE
 
--u, --url URL          URL to blobber server to upload to.
--a, --auth AUTH_FILE   user/pass AUTH_FILE for signing the calls
--b, --branch BRANCH    Specify branch for the file (e.g. try, mozilla-central)
--v, --verbose          Increase verbosity
--d, --dir              Instead of a file, upload multiple files from a dir name
--z, --gzip             gzip compress file before uploading
+-u, --url URL                         URL to blobber server to upload to.
+-a, --auth AUTH_FILE                  user/pass AUTH_FILE for signing the calls
+-b, --branch BRANCH                   Specify branch for the file (e.g. try, mozilla-central)
+-o, --output-manifest-url URL_FILE    Track all uploaded files, upload the info to blobber
+                                      and write the URL to such uploaded file.
+-v, --verbose                         Increase verbosity
+-d, --dir                             Instead of a file, upload multiple files from a dir name
+-z, --gzip                            gzip compress file before uploading
 
-FILE                   Local file(s) to upload
+FILE                                  Local file(s) to upload
 """
 
 import urlparse
@@ -20,6 +22,7 @@ import random
 import tempfile
 import traceback
 import gzip
+import json
 from functools import partial
 
 from blobuploader import cert
@@ -67,9 +70,13 @@ def get_server_whitelist(hosts):
 
 
 def upload_dir(hosts, dirname, branch, auth, compress=False,
-               filetype_whitelist=default_allowed_types):
+               filetype_whitelist=default_allowed_types,
+               manifest_url_file=None):
     """
     Sequentially call uploading subroutine for each file in the dir
+
+    If manifest_url_file is specified, we track all files uploaded in a file which
+    we upload to blobber and we store the URL in manifest_url_file.
 
     """
     log.info("Open directory for files ...")
@@ -78,12 +85,32 @@ def upload_dir(hosts, dirname, branch, auth, compress=False,
              os.path.isfile(os.path.join(dirname, f)) and
              not os.path.islink(os.path.join(dirname, f))]
 
+    upload_manifest = {}
     log.debug("Go through all files in directory")
     for f in files:
         filename = os.path.join(dirname, f)
         compress_file = compress or should_compress(filename)
-        upload_file(hosts, filename, branch, auth, compress=compress_file,
-                    allowed=allowed_to_send(filename, filetype_whitelist))
+        blob_url = upload_file(hosts, filename, branch, auth, compress=compress_file,
+                               allowed=allowed_to_send(filename, filetype_whitelist))
+        upload_manifest[f] = blob_url
+
+    if upload_manifest and manifest_url_file:
+        log.info("Uploading to blobber a json structured file with all "
+                 "the files that have been uploaded.")
+        log.info("Here are the contents: %s" % json.dumps(upload_manifest))
+        # 1) Write to disk before we upload
+        uploaded_files_filepath = 'uploaded_files.txt'
+        with open(uploaded_files_filepath, 'w') as outfile:
+            json.dump(upload_manifest, outfile)
+        # 2) Upload the file
+        blob_url = upload_file(hosts, uploaded_files_filepath, branch, auth,
+                compress=compress_file, allowed=allowed_to_send(filename, filetype_whitelist))
+        if blob_url:
+            # 3) Record URL of the uploaded summary file
+            with open(manifest_url_file, 'w') as f:
+                f.write(blob_url)
+        else:
+            log.warning("The summary file could not be uploaded")
 
     log.info("Iteration through files over.")
 
@@ -101,6 +128,8 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         #403 - bad credentials/IP forbidden/no file attached/
                missing metadata/file type forbidden/metadata limit exceeded
 
+    It also calls check_status to print accordingly log messages
+    It also returns the URL of the file that is uploaded
     """
     log.info("Uploading %s ...", filename)
 
@@ -132,8 +161,11 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         log.info("Uploading, attempt #%d.", n)
 
         try:
-            ret = post_file(host, auth, file, filename, branch, hashalgo,
-                            blobhash, compress)
+            response = post_file(host, auth, file, filename, branch, hashalgo,
+                                 blobhash, compress)
+            check_status(response)
+            ret = response.status_code
+            blob_url = response.headers.get('x-blob-url')
         except:
             log.critical("Unexpected error in client: %s", traceback.format_exc())
             break
@@ -150,6 +182,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         n += 1
 
     log.info("Done attempting.")
+    return blob_url
 
 
 def check_status(response):
@@ -187,8 +220,8 @@ def post_file(host, auth, file, filename, branch, hashalgo, blobhash,
               compressed):
     """
     Pack the request with all required information and make the call to host.
-    Before returning response status code, it calls check_status to print
-    accordingly log messages
+
+    Returns an HTTP response.
 
     """
     url = urlparse.urljoin(host, '/blobs/{0}/{1}'.format(hashalgo, blobhash))
@@ -199,12 +232,8 @@ def post_file(host, auth, file, filename, branch, hashalgo, blobhash,
 
     log.debug("Uploading file to %s ...", url)
     # make the request call to blob server
-    response = requests.post(url, auth=auth, files=data_dict, data=meta_dict,
-                             verify=cert.where())
-
-    check_status(response)
-    return response.status_code
-
+    return requests.post(url, auth=auth, files=data_dict, data=meta_dict,
+                         verify=cert.where())
 
 def main():
     from docopt import docopt
@@ -229,8 +258,11 @@ def main():
         filetype_whitelist = default_allowed_types
 
     if args['--dir']:
+        manifest_url_file = args['--output-manifest-url'] \
+                if args.has_key('--output-manifest-url') else None
         upload_dir(args['--url'], args['FILE'], args['--branch'], auth,
-                   filetype_whitelist=filetype_whitelist)
+                   filetype_whitelist=filetype_whitelist,
+                   manifest_url_file=manifest_url_file)
     else:
         upload_file(args['--url'], args['FILE'], args['--branch'], auth,
                     compress=args['--gzip'] or should_compress(args['FILE']),
