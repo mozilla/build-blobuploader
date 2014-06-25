@@ -1,6 +1,10 @@
-1.2.1 (unreleased)
+1.2.2 (unreleased)
 -------------------
 *
+
+1.2.1 (unreleased)
+-------------------
+* Bug 986112 - Use uploaded_files.json (instead of .txt) to track summary of uploaded files. [armenzg]
 
 1.2.0 (2014-17-06)
 -------------------

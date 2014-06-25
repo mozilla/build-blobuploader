@@ -99,7 +99,7 @@ def upload_dir(hosts, dirname, branch, auth, compress=False,
                  "the files that have been uploaded.")
         log.info("Here are the contents: %s" % json.dumps(upload_manifest))
         # 1) Write to disk before we upload
-        uploaded_files_filepath = 'uploaded_files.txt'
+        uploaded_files_filepath = 'uploaded_files.json'
         with open(uploaded_files_filepath, 'w') as outfile:
             json.dump(upload_manifest, outfile)
         # 2) Upload the file
