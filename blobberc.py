@@ -90,9 +90,8 @@ def upload_dir(hosts, dirname, branch, auth, compress=False,
     for f in files:
         filename = os.path.join(dirname, f)
         compress_file = compress or should_compress(filename)
-        blob_url = upload_file(hosts, filename, branch, auth, compress=compress_file,
-                               allowed=allowed_to_send(filename, filetype_whitelist))
-        upload_manifest[f] = blob_url
+        upload_manifest[f] = upload_file(hosts, filename, branch, auth, compress=compress_file,
+                                         allowed=allowed_to_send(filename, filetype_whitelist))
 
     if upload_manifest and manifest_url_file:
         log.info("Uploading to blobber a json structured file with all "
@@ -150,6 +149,7 @@ def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
         blobhash = filehash(file, hashalgo)
         file.seek(0)
 
+    blob_url = None
     host_pool = hosts[:]
     random.shuffle(host_pool)
     non_retryable_codes = (401, 403)
