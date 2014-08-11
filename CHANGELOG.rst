@@ -1,8 +1,12 @@
-1.2.2 (unreleased)
+1.2.3 (unreleased)
 -------------------
 *
 
-1.2.1 (unreleased)
+1.2.2 (2014-10-08)
+-------------------
+* Bug 1048270 - Initialize blob_url to None in case something fails [armenzg]
+
+1.2.1 (2014-25-06)
 -------------------
 * Bug 986112 - Use uploaded_files.json (instead of .txt) to track summary of uploaded files. [armenzg]
 
