@@ -1,4 +1,4 @@
-#!/home/armenzg/repos/tmp/build/venv/bin/python
+#!/usr/bin/env python
 """Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-o URL_FILE] [-v] [-d] [-z] FILE
 
 -u, --url URL                         URL to blobber server to upload to.
@@ -93,23 +93,11 @@ def upload_dir(hosts, dirname, branch, auth, compress=False,
         upload_manifest[f] = upload_file(hosts, filename, branch, auth, compress=compress_file,
                                          allowed=allowed_to_send(filename, filetype_whitelist))
 
-    if upload_manifest and manifest_url_file:
-        log.info("Uploading to blobber a json structured file with all "
-                 "the files that have been uploaded.")
-        log.info("Here are the contents: %s" % json.dumps(upload_manifest))
-        # 1) Write to disk before we upload
-        uploaded_files_filepath = 'uploaded_files.json'
-        with open(uploaded_files_filepath, 'w') as outfile:
+    if upload_manifest:
+        uploaded_files_path = 'uploaded_files.json'
+        log.info("Writing uploaded files to '{}':\n{}".format(uploaded_files_path, upload_manifest))
+        with open(uploaded_files_path, 'w') as outfile:
             json.dump(upload_manifest, outfile)
-        # 2) Upload the file
-        blob_url = upload_file(hosts, uploaded_files_filepath, branch, auth,
-                compress=compress_file, allowed=allowed_to_send(filename, filetype_whitelist))
-        if blob_url:
-            # 3) Record URL of the uploaded summary file
-            with open(manifest_url_file, 'w') as f:
-                f.write(blob_url)
-        else:
-            log.warning("The summary file could not be uploaded")
 
     log.info("Iteration through files over.")
 
