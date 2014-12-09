@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-o URL_FILE] [-v] [-d] [-z] FILE
+"""Usage: blobberc.py -u URL... -a AUTH_FILE -b BRANCH [-o OUT_FILE] [-v] [-d] [-z] FILE
 
 -u, --url URL                         URL to blobber server to upload to.
 -a, --auth AUTH_FILE                  user/pass AUTH_FILE for signing the calls
 -b, --branch BRANCH                   Specify branch for the file (e.g. try, mozilla-central)
--o, --output-manifest-url URL_FILE    Track all uploaded files, upload the info to blobber
-                                      and write the URL to such uploaded file.
+-o, --output-manifest OUT_FILE        Write a manifest of uploaded contents to the specified path.
 -v, --verbose                         Increase verbosity
 -d, --dir                             Instead of a file, upload multiple files from a dir name
 -z, --gzip                            gzip compress file before uploading
+--output-manifest-url URL_FILE        Deprecated, will be removed soon.
 
 FILE                                  Local file(s) to upload
 """
@@ -70,14 +70,10 @@ def get_server_whitelist(hosts):
 
 
 def upload_dir(hosts, dirname, branch, auth, compress=False,
-               filetype_whitelist=default_allowed_types,
-               manifest_url_file=None):
+               filetype_whitelist=default_allowed_types):
     """
-    Sequentially call uploading subroutine for each file in the dir
-
-    If manifest_url_file is specified, we track all files uploaded in a file which
-    we upload to blobber and we store the URL in manifest_url_file.
-
+    Sequentially call uploading subroutine for each file in the dir.
+    Returns a dictionary of the form {<file name>: <url>}.
     """
     log.info("Open directory for files ...")
     # Ignore directories and symlinks
@@ -85,21 +81,16 @@ def upload_dir(hosts, dirname, branch, auth, compress=False,
              os.path.isfile(os.path.join(dirname, f)) and
              not os.path.islink(os.path.join(dirname, f))]
 
-    upload_manifest = {}
+    uploaded_files = {}
     log.debug("Go through all files in directory")
     for f in files:
         filename = os.path.join(dirname, f)
         compress_file = compress or should_compress(filename)
-        upload_manifest[f] = upload_file(hosts, filename, branch, auth, compress=compress_file,
-                                         allowed=allowed_to_send(filename, filetype_whitelist))
-
-    if upload_manifest:
-        uploaded_files_path = 'uploaded_files.json'
-        log.info("Writing uploaded files to '{}':\n{}".format(uploaded_files_path, upload_manifest))
-        with open(uploaded_files_path, 'w') as outfile:
-            json.dump(upload_manifest, outfile)
+        uploaded_files[f] = upload_file(hosts, filename, branch, auth, compress=compress_file,
+                                        allowed=allowed_to_send(filename, filetype_whitelist))
 
     log.info("Iteration through files over.")
+    return uploaded_files
 
 
 def upload_file(hosts, filename, branch, auth, hashalgo='sha512',
@@ -246,11 +237,12 @@ def main():
         filetype_whitelist = default_allowed_types
 
     if args['--dir']:
-        manifest_url_file = args['--output-manifest-url'] \
-                if args.has_key('--output-manifest-url') else None
-        upload_dir(args['--url'], args['FILE'], args['--branch'], auth,
-                   filetype_whitelist=filetype_whitelist,
-                   manifest_url_file=manifest_url_file)
+        uploaded_files = upload_dir(args['--url'], args['FILE'],
+                                    args['--branch'], auth,
+                                    filetype_whitelist=filetype_whitelist)
+        if args['--output-manifest']:
+            with open(args['--output-manifest'], 'w') as f:
+                json.dump(uploaded_files, f)
     else:
         upload_file(args['--url'], args['FILE'], args['--branch'], auth,
                     compress=args['--gzip'] or should_compress(args['FILE']),
