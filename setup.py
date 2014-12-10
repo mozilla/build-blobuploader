@@ -7,12 +7,13 @@ with open('README.md') as f:
     readme = f.read()
 
 setup(name="blobuploader",
-      description="Command-line client for uploading blobs to the Mozilla [blobber] server.",
+      description="Command-line client for uploading blobs to the Mozilla "
+      "[blobber] server.",
       long_description=readme,
       version="1.2.4",
       author="Mihai Tabara",
       author_email="mtabara@mozilla.com",
-      url="https://github.com/catlee/blobber",
+      url="https://github.com/mozilla/build-blobuploader",
       scripts=["blobberc.py"],
       license="MPL",
       install_requires=required,
