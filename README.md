@@ -26,5 +26,5 @@ Run `blobberc.py -u *URL* -a *auth file* -b *branch name* *path to file*` to upl
 
 *auth file* should be the path to the file containing the username/password you've previously configured. *branch name* is a tag to indicate which branch this blob belongs to. Note that blobber has a hardcoded [whitelist] of file types that are acceptable, as well as a [whitelist] of allowed IP addresses.
 
-[blobber]: https://github.com/catlee/blobber
-[whitelist]: https://github.com/catlee/blobber/blob/master/blobber/config.py#L6
+[blobber]: https://github.com/mozilla/build-blobber
+[whitelist]: https://github.com/mozilla/build-blobber/blob/master/blobber/config.py#L6
