@@ -21,4 +21,7 @@ setup(name="blobuploader",
       package_dir={'blobuploader': 'blobuploader'},
       package_data={'blobuploader': ['*.pem']},
       include_package_data=True,
+      classifiers=[
+          'Programming Language :: Python :: 2 :: Only',
+          ],
       )
